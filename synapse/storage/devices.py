@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
+from synapse.util.tracerutils import TracerUtil, trace_defered_function
 
 from six import iteritems
 
@@ -298,6 +299,7 @@ class DeviceWorkerStore(SQLBaseStore):
     def get_device_stream_token(self):
         return self._device_list_id_gen.get_current_token()
 
+    @trace_defered_function
     @defer.inlineCallbacks
     def get_user_devices_from_cache(self, query_list):
         """Get the devices (and keys if any) for remote users from the cache.
@@ -328,7 +330,8 @@ class DeviceWorkerStore(SQLBaseStore):
                 results.setdefault(user_id, {})[device_id] = device
             else:
                 results[user_id] = yield self._get_cached_devices_for_user(user_id)
-
+        TracerUtil.set_tag("in_cache", results)
+        TracerUtil.set_tag("not_in_cache", user_ids_not_in_cache)
         defer.returnValue((user_ids_not_in_cache, results))
 
     @cachedInlineCallbacks(num_args=2, tree=True)
@@ -406,7 +409,9 @@ class DeviceWorkerStore(SQLBaseStore):
         rows = yield self._execute(
             "get_user_whose_devices_changed", None, sql, from_key
         )
-        defer.returnValue(set(row[0] for row in rows))
+        users = set(row[0] for row in rows)
+        TracerUtil.log_kv("users_whose_devices_changed", users)
+        defer.returnValue(users)
 
     def get_all_device_list_changes_for_remotes(self, from_key, to_key):
         """Return a list of `(stream_id, user_id, destination)` which is the
