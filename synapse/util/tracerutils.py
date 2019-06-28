@@ -16,6 +16,8 @@
 import logging
 import re
 from functools import wraps
+from twisted.internet import defer
+
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +57,7 @@ class TracerUtil(object):
             return
 
         cls.import_opentracing()
-        cls.set_tags()
+        cls.update_tag_constants()
         cls.setup_tracing(config)
 
     @classmethod
@@ -71,7 +73,6 @@ class TracerUtil(object):
             raise
 
         cls._opentracing = opentracing
-        cls.set_tags()
 
     @classmethod
     def setup_tracing(cls, config):
@@ -128,7 +129,7 @@ class TracerUtil(object):
 
     @classmethod
     @only_if_tracing
-    def set_tags(cls):
+    def update_tag_constants(cls):
         cls.Tags = cls._opentracing.tags
 
     # Could use kwargs but I want these to be explicit
@@ -307,3 +308,61 @@ class TracerUtil(object):
 
         for key, value in carrier.items():
             headers[key.encode()] = [value.encode()]
+
+
+def trace_defered_function(func):
+    @wraps(func)
+    @defer.inlineCallbacks
+    def f(self, *args, **kwargs):
+        # Start scope
+        TracerUtil.start_active_span(func.__name__)
+        try:
+            r = yield func(self, *args, **kwargs)
+        except:
+            raise
+        finally:
+            TracerUtil.close_active_span()
+        defer.returnValue(r)
+
+    return f
+
+
+def trace_defered_function_using_operation_name(name):
+    def trace_defered_function(func):
+        @wraps(func)
+        @defer.inlineCallbacks
+        def f(self, *args, **kwargs):
+            # Start scope
+            TracerUtil.start_active_span(name)
+            try:
+                r = yield func(self, *args, **kwargs)
+            except:
+                raise
+            finally:
+                TracerUtil.close_active_span()
+            defer.returnValue(r)
+
+        return f
+
+    return trace_defered_function
+
+
+def trace_function(func):
+    @wraps(func)
+    def f(self, *args, **kwargs):
+        TracerUtil.start_active_span(func.__name__)
+        result = func(self, *args, **kwargs)
+        TracerUtil.close_active_span()
+        return result
+
+    return f
+
+
+def tag_args(func):
+    @wraps(func)
+    def f(self, *args, **kwargs):
+        TracerUtil.set_tag("args", args)
+        TracerUtil.set_tag("kwargs", kwargs)
+        return func(self, *args, **kwargs)
+
+    return f
