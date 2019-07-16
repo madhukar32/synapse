@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: synapse-env
+data:
+  SYNAPSE_SERVER_NAME: "riot-app.ves.io"
+  SYNAPSE_REPORT_STATS: "true"
+  SYNAPSE_NO_TLS: "true"
+  POSTGRES_HOST: "postgresql-rs"
+  POSTGRES_PASSWORD: "matrix"
+  POSTGRES_USER: "matrix"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: synapse
+spec:
+  selector:
+    app: synapse
+  ports:
+  - name: http
+    targetPort: 8008
+    port: 80
+  - name: federation
+    port: 8448
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: synapse
+spec:
+  serviceName: synapse
+  template:
+    metadata:
+      labels:
+        app: synapse
+    spec:
+      containers:
+        - name: synapse
+          image: matrixdotorg/synapse:latest
+          ports:
+            - containerPort: 8008
+              name: http
+            - containerPort: 8448
+              name: federation
+          envFrom:
+            - configMapRef:
+                name: synapse-env
+          volumeMounts:
+            - name: synapse-data
+              mountPath: /data
+          resources:
+            limits:
+              cpu: 500m
+              memory: 2Gi
+            requests:
+              cpu: 100m
+              memory: 1Gi
+      volumes:
+        - name: synapse-data
+          persistentVolumeClaim:
+            claimName: synapse
