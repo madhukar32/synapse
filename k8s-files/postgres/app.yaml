@@ -1,7 +1,10 @@
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: postgresql-init
+  annotations:
+    ves.io/virtual-sites: riot-im/re-riot-vs
 data:
   init.sh: |
     #!/bin/bash
@@ -18,23 +21,26 @@ data:
 apiVersion: v1
 kind: Service
 metadata:
-  name: postgresql-rs
+  name: postgresql-svc
+  annotations:
+    ves.io/virtual-sites: riot-im/re-riot-vs
 spec:
   ports:
     - port: 5432
       targetPort: postgresql
       protocol: TCP
       name: postgresql
-  clusterIP: None
+  type: LoadBalancer
   selector:
     app: postgresql
 ---
-apiVersion: apps/v1beta1
-kind: StatefulSet
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: postgresql
+  annotations:
+    ves.io/virtual-sites: riot-im/re-riot-vs
 spec:
-  serviceName: postgresql
   replicas: 1
   template:
     metadata:
@@ -86,8 +92,9 @@ spec:
             memory: 512Mi
       volumes:
       - name: postgresql-data
-        persistentVolumeClaim:
-          claimName: postgresql
+        hostPath:
+          path: /var/tmp/postgresql
+          type: DirectoryOrCreate
       - name: postgresql-init
         configMap:
           name: postgresql-init

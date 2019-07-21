@@ -1,12 +1,15 @@
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: synapse-env
+  annotations:
+    ves.io/virtual-sites: riot-im/fleet-intel
 data:
   SYNAPSE_SERVER_NAME: "riot-app.ves.io"
   SYNAPSE_REPORT_STATS: "true"
   SYNAPSE_NO_TLS: "true"
-  POSTGRES_HOST: "postgresql-rs"
+  POSTGRES_HOST: "postgresql-svc"
   POSTGRES_PASSWORD: "matrix"
   POSTGRES_USER: "matrix"
 ---
@@ -14,6 +17,8 @@ apiVersion: v1
 kind: Service
 metadata:
   name: synapse
+  annotations:
+    ves.io/virtual-sites: riot-im/fleet-intel
 spec:
   selector:
     app: synapse
@@ -24,12 +29,14 @@ spec:
   - name: federation
     port: 8448
 ---
-apiVersion: apps/v1beta1
-kind: StatefulSet
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: synapse
+  annotations:
+    ves.io/virtual-sites: riot-im/fleet-intel
 spec:
-  serviceName: synapse
+  replicas: 1
   template:
     metadata:
       labels:
@@ -58,5 +65,6 @@ spec:
               memory: 1Gi
       volumes:
         - name: synapse-data
-          persistentVolumeClaim:
-            claimName: synapse
+          hostPath:
+            path: /var/tmp/postgresql
+            type: DirectoryOrCreate
