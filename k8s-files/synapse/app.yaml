@@ -3,12 +3,12 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: synapse-env
+  namespace: riot-im
   annotations:
-    ves.io/virtual-sites: riot-im/fleet-intel
 data:
-  SYNAPSE_SERVER_NAME: "riot-app.ves.io"
-  SYNAPSE_REPORT_STATS: "true"
-  SYNAPSE_NO_TLS: "true"
+  SYNAPSE_SERVER_NAME: "riot.vk8s.io"
+  SYNAPSE_REPORT_STATS: "yes"
+  SYNAPSE_NO_TLS: "yes"
   POSTGRES_HOST: "postgresql-svc"
   POSTGRES_PASSWORD: "matrix"
   POSTGRES_USER: "matrix"
@@ -17,11 +17,12 @@ apiVersion: v1
 kind: Service
 metadata:
   name: synapse
+  namespace: riot-im
   annotations:
-    ves.io/virtual-sites: riot-im/fleet-intel
 spec:
   selector:
     app: synapse
+  type: ClusterIP
   ports:
   - name: http
     targetPort: 8008
@@ -33,15 +34,28 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: synapse
+  namespace: riot-im
   annotations:
-    ves.io/virtual-sites: riot-im/fleet-intel
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      app: synapse
   template:
     metadata:
       labels:
         app: synapse
     spec:
+      initContainers:
+        - name: init-synapse
+          image: matrixdotorg/synapse:latest
+          args: ['generate']
+          envFrom:
+            - configMapRef:
+                name: synapse-env
+          volumeMounts:
+            - name: synapse-data
+              mountPath: /data
       containers:
         - name: synapse
           image: matrixdotorg/synapse:latest
@@ -65,6 +79,4 @@ spec:
               memory: 1Gi
       volumes:
         - name: synapse-data
-          hostPath:
-            path: /var/tmp/postgresql
-            type: DirectoryOrCreate
+          emptyDir: {}
